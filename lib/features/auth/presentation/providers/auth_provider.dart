@@ -133,6 +133,14 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     await _storage.deleteAll();
     state = const AsyncData(AuthState());
   }
+
+  /// Cierre de sesión ligero llamado desde AuthInterceptor cuando el refresh
+  /// falla. NO usa Dio (evita recursión en la cadena del interceptor).
+  /// El router reacciona al cambio de estado y redirige a /auth/login.
+  void forceLogout() {
+    _storage.deleteAll(); // fire-and-forget: no necesitamos await aquí
+    state = const AsyncData(AuthState());
+  }
 }
 
 final authStateProvider = AsyncNotifierProvider<AuthNotifier, AuthState>(AuthNotifier.new);

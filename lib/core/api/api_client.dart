@@ -1,8 +1,11 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:go_router/go_router.dart';
-import '../router/navigator_key.dart';
+// Nota: import circular controlado (api_client ↔ auth_provider).
+// Dart lo permite porque las referencias mutuas son solo dentro de
+// cuerpos de funciones, no en declaraciones top-level.
+import '../../features/auth/presentation/providers/auth_provider.dart'
+    show authStateProvider;
 
 // Android emulator  → 10.0.2.2 (alias del host en AVD)
 // iOS simulator     → --dart-define=API_URL=http://localhost:8000/api/v1
@@ -19,12 +22,15 @@ final dioProvider = Provider<Dio>((ref) {
     receiveTimeout: const Duration(seconds: 20),
     headers: {'Content-Type': 'application/json'},
   ));
-  dio.interceptors.add(AuthInterceptor());
+  dio.interceptors.add(AuthInterceptor(ref));
   return dio;
 });
 
 class AuthInterceptor extends Interceptor {
   final _storage = const FlutterSecureStorage();
+  final Ref _ref;
+
+  AuthInterceptor(this._ref);
 
   @override
   Future<void> onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
@@ -43,12 +49,10 @@ class AuthInterceptor extends Interceptor {
         final response = await Dio().fetch(err.requestOptions);
         return handler.resolve(response);
       }
-      // Refresh falló → sesión expirada. Limpiamos todo y mandamos al login.
-      await _storage.deleteAll();
-      final ctx = appNavigatorKey.currentContext;
-      if (ctx != null && ctx.mounted) {
-        GoRouter.of(ctx).go('/auth/login');
-      }
+      // Refresh falló → forzar logout sin usar Dio (evita recursión).
+      // forceLogout() actualiza authStateProvider → el router detecta
+      // isLoggedIn=false y redirige a /auth/login automáticamente.
+      _ref.read(authStateProvider.notifier).forceLogout();
     }
     handler.next(err);
   }
