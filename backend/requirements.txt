@@ -1,0 +1,42 @@
+# Core
+Django==5.1.4
+gunicorn==23.0.0
+whitenoise==6.8.2
+djangorestframework==3.15.2
+django-cors-headers==4.6.0
+django-filter==24.3
+
+# Admin
+django-unfold==0.42.0
+
+# Auth
+djangorestframework-simplejwt==5.3.1
+dj-rest-auth==7.0.0
+django-allauth==65.3.0
+
+# DB
+psycopg2-binary==2.9.10
+django-environ==0.11.2
+
+# Async
+celery==5.4.0
+redis==5.2.1
+django-celery-beat==2.7.0
+django-celery-results==2.5.1
+
+# Storage
+django-storages[google]==1.14.4
+Pillow==11.1.0
+
+# Payments
+requests==2.32.3
+
+# Monitoring
+sentry-sdk[django]==2.19.2
+
+# Push notifications
+firebase-admin==6.5.0
+
+# Utils
+phonenumbers==8.13.52
+django-phonenumber-field==8.0.0

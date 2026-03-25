@@ -1,0 +1,563 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Panel de Matching | {{ site_title }}{% endblock %}
+
+{% block custom_breadcrumbs %}
+  {% trans "Panel de Matching" as name %}
+  {% include "unfold/helpers/breadcrumb_item.html" with link="" name=name %}
+{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<style>
+  /* ── Layout ─────────────────────────────────────────── */
+  #matching-root { font-family: inherit; padding: 1.5rem; }
+
+  .mp-header {
+    display: flex; align-items: center; gap: 1rem;
+    flex-wrap: wrap; margin-bottom: 1.5rem;
+  }
+  .mp-header h1 { font-size: 1.4rem; font-weight: 700; margin: 0; flex: 1; }
+
+  /* ── Controls ───────────────────────────────────────── */
+  .mp-select {
+    background: var(--color-base-700, #2a2a2a);
+    border: 1px solid var(--color-base-500, #444);
+    color: inherit; padding: .45rem .8rem;
+    border-radius: .45rem; font-size: .9rem; min-width: 260px;
+  }
+  .mp-btn {
+    padding: .45rem 1rem; border-radius: .45rem;
+    font-size: .875rem; font-weight: 600; cursor: pointer;
+    border: none; display: inline-flex; align-items: center; gap: .4rem;
+    transition: opacity .15s;
+  }
+  .mp-btn:disabled { opacity: .5; cursor: not-allowed; }
+  .mp-btn-primary  { background: #1D9E75; color: #fff; }
+  .mp-btn-approve  { background: #059669; color: #fff; }
+  .mp-btn-approved { background: #065f46; color: #d1fae5; cursor: default; }
+  .mp-btn-save     { background: #374151; color: #e5e7eb; }
+  .mp-btn-bulk     { background: #1e40af; color: #fff; }
+  .mp-btn-danger   { background: #7f1d1d; color: #fca5a5; }
+
+  /* ── Stats bar ──────────────────────────────────────── */
+  .mp-stats {
+    display: flex; gap: 1.5rem; flex-wrap: wrap;
+    background: var(--color-base-800, #1a1a1a);
+    border: 1px solid var(--color-base-600, #333);
+    border-radius: .6rem; padding: .8rem 1.2rem;
+    margin-bottom: 1.5rem; align-items: center;
+  }
+  .mp-stat { display: flex; flex-direction: column; align-items: center; min-width: 80px; }
+  .mp-stat-val { font-size: 1.5rem; font-weight: 700; line-height: 1; }
+  .mp-stat-lbl { font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; opacity: .6; }
+  .mp-stat-val.green { color: #34d399; }
+  .mp-stat-val.yellow { color: #fbbf24; }
+  .mp-stat-val.blue { color: #60a5fa; }
+
+  /* ── Grid ───────────────────────────────────────────── */
+  .mp-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+  }
+
+  /* ── Group card ─────────────────────────────────────── */
+  .mp-card {
+    background: var(--color-base-800, #1a1a1a);
+    border: 1px solid var(--color-base-600, #333);
+    border-radius: .75rem; padding: 1rem;
+    display: flex; flex-direction: column; gap: .75rem;
+    transition: border-color .2s;
+  }
+  .mp-card.is-approved { border-color: #065f46; }
+  .mp-card.is-notified { border-color: #1e40af; }
+
+  .mp-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .mp-card-title { font-weight: 700; font-size: .95rem; }
+
+  /* ── Score bar ──────────────────────────────────────── */
+  .score-wrap { display: flex; align-items: center; gap: .5rem; }
+  .score-bar-bg {
+    flex: 1; height: 6px; background: var(--color-base-600, #333);
+    border-radius: 99px; overflow: hidden;
+  }
+  .score-bar-fill { height: 100%; border-radius: 99px; transition: width .4s; }
+  .score-num { font-size: .8rem; font-weight: 700; min-width: 36px; text-align: right; }
+  .score-high  { background: #10b981; }
+  .score-mid   { background: #f59e0b; }
+  .score-low   { background: #ef4444; }
+
+  /* ── Status badge ───────────────────────────────────── */
+  .badge {
+    padding: .15rem .55rem; border-radius: 99px;
+    font-size: .7rem; font-weight: 600; white-space: nowrap;
+  }
+  .badge-proposed { background: #374151; color: #9ca3af; }
+  .badge-approved { background: #065f46; color: #6ee7b7; }
+  .badge-notified { background: #1e3a8a; color: #93c5fd; }
+  .badge-done     { background: #1f2937; color: #6b7280; }
+
+  /* ── Members ────────────────────────────────────────── */
+  .mp-members { display: flex; flex-direction: column; gap: .4rem; }
+  .mp-member {
+    display: flex; align-items: center; gap: .5rem;
+    font-size: .82rem;
+  }
+  .mp-avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: .7rem; flex-shrink: 0; color: #fff;
+  }
+  .mp-chips { display: flex; flex-wrap: wrap; gap: .25rem; }
+  .mp-chip {
+    padding: .1rem .4rem; border-radius: 99px; font-size: .65rem;
+    background: var(--color-base-700, #222); border: 1px solid var(--color-base-500, #444);
+  }
+
+  /* ── Fields ─────────────────────────────────────────── */
+  .mp-field { display: flex; flex-direction: column; gap: .25rem; }
+  .mp-field label { font-size: .72rem; opacity: .6; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+  .mp-input, .mp-textarea {
+    background: var(--color-base-700, #222);
+    border: 1px solid var(--color-base-500, #444);
+    color: inherit; border-radius: .4rem; padding: .35rem .6rem;
+    font-size: .85rem; width: 100%; box-sizing: border-box;
+  }
+  .mp-textarea { resize: vertical; min-height: 56px; }
+  .mp-input:focus, .mp-textarea:focus {
+    outline: none; border-color: #1D9E75;
+  }
+
+  /* ── Card actions ───────────────────────────────────── */
+  .mp-card-actions { display: flex; gap: .5rem; margin-top: auto; }
+
+  /* ── Loading / empty ────────────────────────────────── */
+  .mp-empty {
+    grid-column: 1 / -1; text-align: center;
+    padding: 3rem 1rem; opacity: .5;
+  }
+  .spinner {
+    display: inline-block; width: 18px; height: 18px;
+    border: 2px solid currentColor; border-top-color: transparent;
+    border-radius: 50%; animation: spin .6s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Toast ──────────────────────────────────────────── */
+  .mp-toast {
+    position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999;
+    padding: .6rem 1.1rem; border-radius: .5rem; font-size: .85rem;
+    font-weight: 600; box-shadow: 0 4px 12px rgba(0,0,0,.4);
+    transition: opacity .3s;
+  }
+  .mp-toast.ok  { background: #065f46; color: #d1fae5; }
+  .mp-toast.err { background: #7f1d1d; color: #fca5a5; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+
+<div id="matching-root" x-data="matchingPanel()" x-init="init()">
+
+  <!-- ── Header ── -->
+  <div class="mp-header">
+    <h1>🍽️ Panel de Matching</h1>
+
+    <select class="mp-select" x-model="selectedEvent" @change="onEventChange()">
+      <option value="">— Selecciona un evento —</option>
+      {% for event in events %}
+      <option value="{{ event.id }}">
+        {{ event.event_date|date:"d M Y" }} · {{ event.city.name }}
+        {% if event.restaurant %} — {{ event.restaurant.name }}{% endif %}
+        ({{ event.get_status_display }})
+      </option>
+      {% endfor %}
+    </select>
+
+    <button class="mp-btn mp-btn-primary"
+            :disabled="!selectedEvent || running"
+            @click="runMatching()">
+      <span x-show="running" class="spinner"></span>
+      <span x-show="!running">▶</span>
+      <span x-text="running ? 'Ejecutando…' : 'Correr Matching'"></span>
+    </button>
+  </div>
+
+  <!-- ── Stats ── -->
+  <template x-if="groups.length > 0">
+    <div class="mp-stats">
+      <div class="mp-stat">
+        <span class="mp-stat-val blue" x-text="groups.length"></span>
+        <span class="mp-stat-lbl">Total grupos</span>
+      </div>
+      <div class="mp-stat">
+        <span class="mp-stat-val yellow" x-text="proposed.length"></span>
+        <span class="mp-stat-lbl">Propuestos</span>
+      </div>
+      <div class="mp-stat">
+        <span class="mp-stat-val green" x-text="approved.length"></span>
+        <span class="mp-stat-lbl">Aprobados</span>
+      </div>
+      <div class="mp-stat">
+        <span class="mp-stat-val" x-text="totalMembers"></span>
+        <span class="mp-stat-lbl">Usuarios</span>
+      </div>
+      <div style="margin-left:auto">
+        <button class="mp-btn mp-btn-bulk"
+                :disabled="proposed.length === 0 || bulkRunning"
+                @click="approveAll()">
+          <span x-show="bulkRunning" class="spinner"></span>
+          ✅ Aprobar todos los propuestos (<span x-text="proposed.length"></span>)
+        </button>
+      </div>
+    </div>
+  </template>
+
+  <!-- ── Filter tabs ── -->
+  <template x-if="groups.length > 0">
+    <div style="display:flex;gap:.5rem;margin-bottom:1rem;">
+      <button class="mp-btn" :class="filter==='all'?'mp-btn-primary':'mp-btn-save'"
+              @click="filter='all'">Todos (<span x-text="groups.length"></span>)</button>
+      <button class="mp-btn" :class="filter==='proposed'?'mp-btn-primary':'mp-btn-save'"
+              @click="filter='proposed'">Propuestos (<span x-text="proposed.length"></span>)</button>
+      <button class="mp-btn" :class="filter==='approved'?'mp-btn-approve':'mp-btn-save'"
+              @click="filter='approved'">Aprobados (<span x-text="approved.length"></span>)</button>
+    </div>
+  </template>
+
+  <!-- ── Groups grid ── -->
+  <div class="mp-grid">
+
+    <!-- Loading -->
+    <template x-if="loading">
+      <div class="mp-empty">
+        <div class="spinner" style="width:32px;height:32px;border-width:3px;margin:0 auto 1rem;"></div>
+        <p>Cargando grupos…</p>
+      </div>
+    </template>
+
+    <!-- Empty -->
+    <template x-if="!loading && selectedEvent && groups.length === 0">
+      <div class="mp-empty">
+        <p style="font-size:2rem">🔍</p>
+        <p>No hay grupos para este evento.</p>
+        <p style="font-size:.8rem">Corre el matching para generar propuestas.</p>
+      </div>
+    </template>
+
+    <!-- No event selected -->
+    <template x-if="!selectedEvent">
+      <div class="mp-empty">
+        <p style="font-size:2rem">📅</p>
+        <p>Selecciona un evento para comenzar.</p>
+      </div>
+    </template>
+
+    <!-- Group cards -->
+    <template x-for="group in filteredGroups" :key="group.id">
+      <div class="mp-card"
+           :class="{'is-approved': group.admin_approved, 'is-notified': group.status === 'notified'}">
+
+        <!-- Card header -->
+        <div class="mp-card-header">
+          <span class="mp-card-title">
+            Mesa <span x-text="group.table_number || '—'"></span>
+          </span>
+          <span class="badge"
+                :class="{
+                  'badge-proposed': group.status === 'proposed',
+                  'badge-approved': group.status === 'approved',
+                  'badge-notified': group.status === 'notified',
+                  'badge-done':     group.status === 'done',
+                }"
+                x-text="statusLabel(group.status)">
+          </span>
+        </div>
+
+        <!-- Score bar -->
+        <div class="score-wrap">
+          <div class="score-bar-bg">
+            <div class="score-bar-fill"
+                 :class="scoreClass(group.score)"
+                 :style="'width:' + (group.score * 100).toFixed(0) + '%'">
+            </div>
+          </div>
+          <span class="score-num"
+                :style="'color:' + scoreColor(group.score)"
+                x-text="(group.score * 100).toFixed(0) + '%'">
+          </span>
+        </div>
+
+        <!-- Members -->
+        <div class="mp-members">
+          <template x-for="m in group.members" :key="m.user_id">
+            <div class="mp-member">
+              <div class="mp-avatar" :style="'background:' + avatarColor(m.name)">
+                <span x-text="initials(m.name)"></span>
+              </div>
+              <div style="flex:1;min-width:0">
+                <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"
+                     x-text="m.name || 'Sin nombre'"></div>
+                <div class="mp-chips">
+                  <template x-if="m.industry">
+                    <span class="mp-chip" x-text="m.industry"></span>
+                  </template>
+                  <template x-if="m.stage">
+                    <span class="mp-chip" x-text="stageLabel(m.stage)"></span>
+                  </template>
+                  <template x-if="m.looking_for">
+                    <span class="mp-chip" x-text="'→ ' + lookingLabel(m.looking_for)"></span>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- Editable fields (only for non-done groups) -->
+        <template x-if="group.status !== 'done'">
+          <div style="display:flex;gap:.5rem;">
+            <div class="mp-field" style="width:80px;flex-shrink:0">
+              <label>Mesa #</label>
+              <input class="mp-input" type="number" min="1" x-model="group._table" placeholder="—">
+            </div>
+            <div class="mp-field" style="flex:1">
+              <label>Notas admin</label>
+              <textarea class="mp-textarea" x-model="group._notes" placeholder="Observaciones…"></textarea>
+            </div>
+          </div>
+        </template>
+
+        <!-- Actions -->
+        <div class="mp-card-actions">
+          <template x-if="group.status !== 'done'">
+            <button class="mp-btn mp-btn-save" style="flex:1"
+                    :disabled="group._saving"
+                    @click="saveGroup(group)">
+              <span x-show="group._saving" class="spinner"></span>
+              <span x-text="group._saving ? 'Guardando…' : '💾 Guardar'"></span>
+            </button>
+          </template>
+
+          <template x-if="!group.admin_approved">
+            <button class="mp-btn mp-btn-approve" style="flex:1"
+                    :disabled="group._approving"
+                    @click="approveGroup(group)">
+              <span x-show="group._approving" class="spinner"></span>
+              <span x-text="group._approving ? 'Aprobando…' : '✓ Aprobar'"></span>
+            </button>
+          </template>
+
+          <template x-if="group.admin_approved">
+            <button class="mp-btn mp-btn-approved" style="flex:1" disabled>
+              ✅ Aprobado
+            </button>
+          </template>
+        </div>
+
+      </div>
+    </template>
+  </div>
+
+  <!-- ── Toast ── -->
+  <div class="mp-toast" :class="toast.type"
+       x-show="toast.show" x-transition
+       x-text="toast.msg"
+       style="display:none">
+  </div>
+
+</div>
+
+<script>
+function matchingPanel() {
+  return {
+    selectedEvent: '',
+    groups: [],
+    filter: 'all',
+    loading: false,
+    running: false,
+    bulkRunning: false,
+    toast: { show: false, msg: '', type: 'ok' },
+
+    get proposed()   { return this.groups.filter(g => g.status === 'proposed'); },
+    get approved()   { return this.groups.filter(g => g.admin_approved); },
+    get totalMembers(){ return this.groups.reduce((s, g) => s + g.members.length, 0); },
+    get filteredGroups() {
+      if (this.filter === 'proposed') return this.groups.filter(g => g.status === 'proposed');
+      if (this.filter === 'approved') return this.groups.filter(g => g.admin_approved);
+      return this.groups;
+    },
+
+    init() {
+      // Pre-select first event if only one
+      {% if events|length == 1 %}
+      this.selectedEvent = '{{ events.0.id }}';
+      this.loadGroups();
+      {% endif %}
+    },
+
+    onEventChange() {
+      if (this.selectedEvent) this.loadGroups();
+      else this.groups = [];
+    },
+
+    csrfToken() {
+      return document.querySelector('[name=csrfmiddlewaretoken]').value;
+    },
+
+    async api(url, opts = {}) {
+      const res = await fetch(url, {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': this.csrfToken(),
+          ...opts.headers,
+        },
+        credentials: 'same-origin',
+        ...opts,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Error ${res.status}`);
+      }
+      return res.status === 204 ? null : res.json();
+    },
+
+    async loadGroups() {
+      if (!this.selectedEvent) return;
+      this.loading = true;
+      try {
+        const data = await this.api(`/api/v1/matching/admin/groups/?event=${this.selectedEvent}`);
+        this.groups = (data || []).map(g => ({
+          ...g,
+          _table: g.table_number ?? '',
+          _notes: g.admin_notes ?? '',
+          _saving: false,
+          _approving: false,
+        }));
+        this.filter = 'all';
+      } catch (e) {
+        this.showToast(e.message, 'err');
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async runMatching() {
+      this.running = true;
+      try {
+        const res = await this.api(`/api/v1/matching/admin/run/?event=${this.selectedEvent}`, { method: 'POST' });
+        this.showToast(`✅ ${res.detail} (task: ${res.task_id.slice(0,8)}…)`, 'ok');
+        // Poll until groups appear (max 30s)
+        await this.pollGroups(30);
+      } catch (e) {
+        this.showToast(e.message, 'err');
+      } finally {
+        this.running = false;
+      }
+    },
+
+    async pollGroups(maxSecs) {
+      const start = Date.now();
+      while (Date.now() - start < maxSecs * 1000) {
+        await new Promise(r => setTimeout(r, 2000));
+        await this.loadGroups();
+        if (this.groups.length > 0) return;
+      }
+    },
+
+    async saveGroup(group) {
+      group._saving = true;
+      try {
+        const updated = await this.api(`/api/v1/matching/admin/groups/${group.id}/`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            table_number: group._table || null,
+            admin_notes: group._notes,
+          }),
+        });
+        group.table_number = updated.table_number;
+        group.admin_notes  = updated.admin_notes;
+        this.showToast('💾 Guardado', 'ok');
+      } catch (e) {
+        this.showToast(e.message, 'err');
+      } finally {
+        group._saving = false;
+      }
+    },
+
+    async approveGroup(group) {
+      group._approving = true;
+      try {
+        const res = await this.api(`/api/v1/matching/admin/groups/${group.id}/approve/`, { method: 'POST' });
+        group.admin_approved = true;
+        group.status = 'approved';
+        this.showToast(`✅ ${res.detail}`, 'ok');
+      } catch (e) {
+        this.showToast(e.message, 'err');
+      } finally {
+        group._approving = false;
+      }
+    },
+
+    async approveAll() {
+      const toApprove = this.proposed.slice();
+      if (!toApprove.length) return;
+      this.bulkRunning = true;
+      let ok = 0, fail = 0;
+      for (const group of toApprove) {
+        try {
+          await this.api(`/api/v1/matching/admin/groups/${group.id}/approve/`, { method: 'POST' });
+          const g = this.groups.find(x => x.id === group.id);
+          if (g) { g.admin_approved = true; g.status = 'approved'; }
+          ok++;
+        } catch { fail++; }
+      }
+      this.bulkRunning = false;
+      this.showToast(`✅ ${ok} aprobados${fail ? ` · ${fail} errores` : ''}`, ok > 0 ? 'ok' : 'err');
+    },
+
+    showToast(msg, type = 'ok') {
+      this.toast = { show: true, msg, type };
+      setTimeout(() => { this.toast.show = false; }, 3500);
+    },
+
+    // ── Helpers ──────────────────────────────────────────
+    statusLabel(s) {
+      return { proposed: 'Propuesto', approved: 'Aprobado', notified: 'Notificado', done: 'Completado' }[s] || s;
+    },
+    stageLabel(s) {
+      return { idea: 'Idea', mvp: 'MVP', early: 'Early', growth: 'Growth', scale: 'Scale', executive: 'Ejecutivo', investor: 'Inversor', other: 'Otro' }[s] || s;
+    },
+    lookingLabel(s) {
+      return { cofounder: 'Cofundador', clients: 'Clientes', investors: 'Inversores', talent: 'Talento', mentors: 'Mentores', network: 'Red', friends: 'Amigos' }[s] || s;
+    },
+    scoreClass(score) {
+      if (score >= 0.7) return 'score-high';
+      if (score >= 0.5) return 'score-mid';
+      return 'score-low';
+    },
+    scoreColor(score) {
+      if (score >= 0.7) return '#10b981';
+      if (score >= 0.5) return '#f59e0b';
+      return '#ef4444';
+    },
+    initials(name) {
+      if (!name) return '?';
+      return name.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+    },
+    avatarColor(name) {
+      const colors = ['#6366f1','#8b5cf6','#ec4899','#f43f5e','#0ea5e9','#14b8a6','#f59e0b','#10b981'];
+      let hash = 0;
+      for (const c of (name || '')) hash = (hash * 31 + c.charCodeAt(0)) & 0xfffffff;
+      return colors[hash % colors.length];
+    },
+  };
+}
+</script>
+{% endblock %}
