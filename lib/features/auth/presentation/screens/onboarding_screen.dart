@@ -90,72 +90,88 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => PopScope(
-    canPop: !_saving,
-    child: Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Barra de progreso
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-              child: Row(
-                children: List.generate(5, (i) => Expanded(
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 3),
-                    height: 3,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(2),
-                      color: i <= _step
-                          ? const Color(0xFF1D9E75)
-                          : const Color(0xFFE8E6DF),
-                    ),
-                  ),
-                )),
-              ),
-            ),
-            Expanded(
-              child: PageView(
-                controller: _pageCtrl,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  _nameStep(),
-                  _choiceStep('¿En qué etapa estás?', 'Nos ayuda a encontrar personas similares', _stages, _stage, (v) => setState(() => _stage = v)),
-                  _choiceStep('¿Qué buscas en una mesa?', 'Sé honesto — mejora el matching', _goals, _lookingFor, (v) => setState(() => _lookingFor = v)),
-                  _interestsStep(),
-                  _mbtiStep(),
-                ],
-              ),
-            ),
-            // CTA principal
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-              child: FilledButton(
-                onPressed: _saving ? null : _next,
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 52),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: _saving
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Text(
-                        _step == 4 ? 'Empezar' : 'Continuar',
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+  Widget build(BuildContext context) {
+    // viewInsetsOf.bottom = altura del teclado (0 cuando está cerrado)
+    // viewPaddingOf.bottom = safe area inferior (home indicator, nav bar)
+    final keyboardH = MediaQuery.viewInsetsOf(context).bottom;
+    final safeBottom = MediaQuery.viewPaddingOf(context).bottom;
+
+    return PopScope(
+      canPop: !_saving,
+      child: Scaffold(
+        // false: el Scaffold no reduce el body al abrir el teclado;
+        // lo manejamos manualmente con el padding del botón.
+        resizeToAvoidBottomInset: false,
+        body: SafeArea(
+          bottom: false, // el padding inferior lo controlamos nosotros
+          child: Column(
+            children: [
+              // Barra de progreso
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                child: Row(
+                  children: List.generate(5, (i) => Expanded(
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      height: 3,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(2),
+                        color: i <= _step
+                            ? const Color(0xFF1D9E75)
+                            : const Color(0xFFE8E6DF),
                       ),
+                    ),
+                  )),
+                ),
               ),
-            ),
-          ],
+              Expanded(
+                child: PageView(
+                  controller: _pageCtrl,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    _nameStep(),
+                    _choiceStep('¿En qué etapa estás?', 'Nos ayuda a encontrar personas similares', _stages, _stage, (v) => setState(() => _stage = v)),
+                    _choiceStep('¿Qué buscas en una mesa?', 'Sé honesto — mejora el matching', _goals, _lookingFor, (v) => setState(() => _lookingFor = v)),
+                    _interestsStep(),
+                    _mbtiStep(),
+                  ],
+                ),
+              ),
+              // CTA principal: el padding inferior crece con el teclado
+              AnimatedPadding(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOut,
+                padding: EdgeInsets.fromLTRB(
+                  24, 8, 24,
+                  keyboardH > 0 ? keyboardH + 12 : safeBottom + 24,
+                ),
+                child: FilledButton(
+                  onPressed: _saving ? null : _next,
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 52),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: _saving
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          _step == 4 ? 'Empezar' : 'Continuar',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                        ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 
   Widget _nameStep() => Padding(
     padding: const EdgeInsets.all(24),
