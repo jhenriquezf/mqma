@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
@@ -15,11 +14,9 @@ import '../../features/profile/presentation/screens/edit_profile_screen.dart';
 import '../../features/matching/presentation/screens/matching_screen.dart';
 import '../../features/reviews/presentation/screens/review_screen.dart';
 import '../widgets/main_scaffold.dart';
+import 'navigator_key.dart';
 
-/// Clave global del Navigator raíz.
-/// Usada por NotificationService para navegar desde handlers
-/// de notificación sin necesitar BuildContext en el call site.
-final appNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
+export 'navigator_key.dart' show appNavigatorKey;
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(

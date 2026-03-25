@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../api/api_client.dart';
-import '../router/app_router.dart';
+import '../router/navigator_key.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Handler de background (obligatorio: función top-level, no closure)

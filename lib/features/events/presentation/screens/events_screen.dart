@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -17,12 +18,30 @@ class EventsScreen extends ConsumerWidget {
       ),
       body: eventsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          const Icon(Icons.wifi_off_outlined, size: 48, color: Colors.grey),
-          const SizedBox(height: 16),
-          const Text('Sin conexión'),
-          TextButton(onPressed: () => ref.invalidate(eventsProvider), child: const Text('Reintentar')),
-        ])),
+        error: (e, _) {
+          final isNetErr = e is DioException &&
+              (e.type == DioExceptionType.connectionError ||
+               e.type == DioExceptionType.connectionTimeout ||
+               e.type == DioExceptionType.receiveTimeout);
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  isNetErr ? Icons.wifi_off_outlined : Icons.cloud_off_outlined,
+                  size: 48,
+                  color: Colors.grey,
+                ),
+                const SizedBox(height: 16),
+                Text(isNetErr ? 'Sin conexión' : 'No se pudieron cargar los eventos'),
+                TextButton(
+                  onPressed: () => ref.invalidate(eventsProvider),
+                  child: const Text('Reintentar'),
+                ),
+              ],
+            ),
+          );
+        },
         data: (events) {
           if (events.isEmpty) return const Center(child: Text('No hay eventos disponibles en tu ciudad'));
           return RefreshIndicator(

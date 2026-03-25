@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:go_router/go_router.dart';
+import '../router/navigator_key.dart';
 
 // Android emulator  → 10.0.2.2 (alias del host en AVD)
 // iOS simulator     → --dart-define=API_URL=http://localhost:8000/api/v1
@@ -40,6 +42,12 @@ class AuthInterceptor extends Interceptor {
         err.requestOptions.headers['Authorization'] = 'Bearer $token';
         final response = await Dio().fetch(err.requestOptions);
         return handler.resolve(response);
+      }
+      // Refresh falló → sesión expirada. Limpiamos todo y mandamos al login.
+      await _storage.deleteAll();
+      final ctx = appNavigatorKey.currentContext;
+      if (ctx != null && ctx.mounted) {
+        GoRouter.of(ctx).go('/auth/login');
       }
     }
     handler.next(err);

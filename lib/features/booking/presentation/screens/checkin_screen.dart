@@ -1,9 +1,30 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../domain/booking_with_event_model.dart';
 import '../providers/checkin_provider.dart';
+
+String _friendlyError(Object? e) {
+  if (e == null) return 'Ocurrió un error inesperado. Intenta de nuevo.';
+  if (e is DioException) {
+    if (e.type == DioExceptionType.connectionError ||
+        e.type == DioExceptionType.connectionTimeout ||
+        e.type == DioExceptionType.receiveTimeout) {
+      return 'Sin conexión. Verifica tu red e intenta de nuevo.';
+    }
+    final status = e.response?.statusCode;
+    if (status == 401) return 'Sesión expirada. Vuelve a iniciar sesión.';
+    if (status == 404) return 'Reserva no encontrada.';
+    if (status == 400) {
+      final detail = e.response?.data?['detail'];
+      if (detail != null) return detail.toString();
+    }
+    return 'Error del servidor. Intenta más tarde.';
+  }
+  return 'Ocurrió un error inesperado. Intenta de nuevo.';
+}
 
 class CheckinScreen extends ConsumerStatefulWidget {
   const CheckinScreen({super.key});
@@ -69,7 +90,7 @@ class _MyQrTab extends ConsumerWidget {
     return bookingsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => _ErrorView(
-        message: e.toString(),
+        message: _friendlyError(e),
         onRetry: () => ref.invalidate(checkinBookingsProvider),
       ),
       data: (bookings) {
@@ -352,7 +373,7 @@ class _ScanTabState extends ConsumerState<_ScanTab> {
 
     if (checkinState is AsyncError) {
       return _CheckinError(
-        message: checkinState.error.toString(),
+        message: _friendlyError(checkinState.error),
         onRetry: _reset,
       );
     }
